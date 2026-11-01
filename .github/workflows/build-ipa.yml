@@ -1,0 +1,48 @@
+name: Build iOS Native IPA (Prehraj.to)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    name: Build Unsigned .ipa on macOS
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate Xcode Project with XcodeGen
+        run: |
+          which xcodegen || brew install xcodegen
+          xcodegen generate
+
+      - name: Build iOS App (Release - ARM64)
+        run: |
+          xcodebuild clean build \
+            -project PrehrajTo.xcodeproj \
+            -scheme PrehrajTo \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
+
+      - name: Ad-Hoc Sign & Package .app into PrehrajTo-iOS.ipa
+        run: |
+          APP_PATH="build/Build/Products/Release-iphoneos/PrehrajTo.app"
+          codesign --force --deep --sign - "$APP_PATH" || true
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/
+          zip -r9 PrehrajTo-iOS.ipa Payload
+
+      - name: Upload PrehrajTo-iOS.ipa Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PrehrajTo-iOS-IPA
+          path: PrehrajTo-iOS.ipa
+          retention-days: 30
